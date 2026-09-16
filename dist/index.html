@@ -3,30 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#071827" />
+    <meta name="theme-color" content="#061b35" />
     <meta name="description" content="Naxel Care - gestão inteligente do pós-serviço para empresas de climatização." />
     <title>Naxel Care</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23061b35'/%3E%3Cpath d='M15 48V16l34 32V16' fill='none' stroke='%23fff' stroke-width='7'/%3E%3Cpath d='M42 12h10v10' fill='none' stroke='%23c99a45' stroke-width='5'/%3E%3C/svg%3E" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#content">Ir para o conteúdo</a>
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegação principal">
         <div class="brand">
-          <img src="./assets/naxel-logo.png" alt="Naxel" />
-          <div><strong>Naxel Care</strong><span>Pós-serviço inteligente</span></div>
+          <span class="brand-mark"><img src="./assets/naxel-logo.png" alt="" /></span>
+          <div><strong>Naxel <b>Care</b></strong><span>Gestão de pós-serviço</span></div>
         </div>
         <nav id="nav"></nav>
         <div class="sidebar-foot">
           <div class="company-dot">CB</div>
-          <div><strong>Clima Bahia</strong><span>Plano fundador</span></div>
+          <div><strong>Clima Bahia</strong><span>Operação ativa</span></div>
         </div>
       </aside>
       <main class="workspace">
         <header class="topbar">
           <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
           <div><span class="eyebrow" id="todayLabel">NAXEL CARE</span><h1 id="pageTitle">Visão geral</h1></div>
-          <div class="top-actions"><button class="icon-button" aria-label="Notificações">◌</button><button class="primary" data-action="new-order">+ Novo atendimento</button></div>
+          <div class="top-actions"><span class="sync-status"><i></i> Dados salvos</span><button class="primary" data-action="new-order">+ Novo atendimento</button></div>
         </header>
         <section id="content" class="content" aria-live="polite"></section>
       </main>
