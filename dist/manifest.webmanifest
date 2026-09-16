@@ -1,0 +1,10 @@
+{
+  "name": "Naxel Care",
+  "short_name": "Naxel Care",
+  "description": "Gestão inteligente do pós-serviço para empresas de climatização.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f1e7",
+  "theme_color": "#071827",
+  "icons": [{"src":"./assets/naxel-logo.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]
+}

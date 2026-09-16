@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071827" />
+    <meta name="description" content="Naxel Care - gestão inteligente do pós-serviço para empresas de climatização." />
+    <title>Naxel Care</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <div class="brand">
+          <img src="./assets/naxel-logo.png" alt="Naxel" />
+          <div><strong>Naxel Care</strong><span>Pós-serviço inteligente</span></div>
+        </div>
+        <nav id="nav"></nav>
+        <div class="sidebar-foot">
+          <div class="company-dot">CB</div>
+          <div><strong>Clima Bahia</strong><span>Plano fundador</span></div>
+        </div>
+      </aside>
+      <main class="workspace">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobileMenu" aria-label="Abrir menu">☰</button>
+          <div><span class="eyebrow" id="todayLabel">NAXEL CARE</span><h1 id="pageTitle">Visão geral</h1></div>
+          <div class="top-actions"><button class="icon-button" aria-label="Notificações">◌</button><button class="primary" data-action="new-order">+ Novo atendimento</button></div>
+        </header>
+        <section id="content" class="content" aria-live="polite"></section>
+      </main>
+    </div>
+    <div id="modalRoot"></div>
+    <div id="toastRoot" class="toast-root"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
