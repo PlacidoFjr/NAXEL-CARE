@@ -16,7 +16,10 @@ fs.mkdirSync(path.join(output, "assets"), { recursive: true });
 let html = fs.readFileSync(path.join(source, "index.html"), "utf8");
 
 if (publishPanel) {
-  html = html.replace("<span data-panel-access></span>", '<a class="button outline" href="painel.html">Acessar painel</a>');
+  html = html.replace(
+    "<span data-panel-access></span>",
+    '<a class="button outline customer-access" href="painel.html" aria-label="Já é cliente? Entrar"><span class="customer-access-full">Já é cliente? <strong>Entrar</strong></span><span class="customer-access-short" aria-hidden="true">Entrar</span></a>'
+  );
   const panelHtml = fs.readFileSync(path.join(source, "painel.html"), "utf8");
   const panelJs = fs.readFileSync(path.join(source, "app.js"), "utf8");
   if (/demonstra(?:ção|cao)|prévia|previa|dados fict[ií]ci|admin@naxel\.local/i.test(`${panelHtml}\n${panelJs}`)) {

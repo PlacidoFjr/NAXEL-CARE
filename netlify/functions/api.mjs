@@ -119,6 +119,32 @@ async function membership(client, userId) {
   return data[0];
 }
 
+async function resolveUser(client, authUser) {
+  const { data: profile, error } = await client.from("profiles")
+    .select("id,name,email,status").eq("id", authUser.id).maybeSingle();
+  if (error || !profile || profile.status !== "Ativo") throw httpError(401, "Conta inativa ou não configurada.");
+  const { data: isPlatformAdmin, error: adminError } = await client.rpc("is_platform_admin");
+  if (adminError) throw httpError(503, "Não foi possível validar o perfil da plataforma.");
+  if (isPlatformAdmin === true) {
+    return { id: profile.id, name: profile.name, email: profile.email, company_name: "Naxel Care", role: "Administrador da plataforma", organization_id: null, organization_name: null, is_platform_admin: true };
+  }
+  const member = await membership(client, authUser.id);
+  return { ...await getUserView(client, authUser, member), is_platform_admin: false };
+}
+
+function platformClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw httpError(503, "O serviço de convites ainda não foi configurado no servidor.");
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
+}
+
+function requirePlatformAdmin(user) {
+  if (user?.is_platform_admin !== true) throw httpError(403, "Acesso restrito ao administrador da plataforma.");
+}
+
 async function sessionContext(request) {
   const cookies = parseCookies(request.headers.get("cookie"));
   if (!cookies.naxel_access && !cookies.naxel_refresh) throw httpError(401, "Sessão necessária.");
@@ -141,16 +167,10 @@ async function sessionContext(request) {
   }
   if (error || !result?.user) throw httpError(401, "Sessão necessária.");
   const authenticated = userClient(accessToken);
-  const { data: profile, error: profileError } = await authenticated.from("profiles")
-    .select("id,name,email,status").eq("id", result.user.id).maybeSingle();
-  if (profileError || !profile || profile.status !== "Ativo") throw httpError(401, "Conta inativa ou não configurada.");
-  const member = await membership(authenticated, result.user.id);
-  const { data: org, error: orgError } = await authenticated.from("organizations")
-    .select("id,name,status").eq("id", member.organization_id).maybeSingle();
-  if (orgError || !org || org.status !== "Ativa") throw httpError(403, "Empresa inativa ou não configurada.");
+  const user = await resolveUser(authenticated, result.user);
   return {
     client: authenticated,
-    user: { id: profile.id, name: profile.name, email: profile.email, company_name: org.name, role: member.role, organization_id: org.id, organization_name: org.name },
+    user,
     csrf: cookies.naxel_csrf,
     rotated,
     accessToken,
@@ -248,10 +268,133 @@ async function login(request) {
   const client = userClient();
   const { data, error } = await client.auth.signInWithPassword({ email: address, password });
   if (error || !data.user || !data.session) throw httpError(401, "E-mail ou senha incorretos.");
-  const member = await membership(client, data.user.id);
-  const user = await getUserView(client, data.user, member);
+  const authenticated = userClient(data.session.access_token);
+  const user = await resolveUser(authenticated, data.user);
   const csrf = randomUUID();
   return json(200, { user, csrfToken: csrf }, sessionHeaders(data.session, csrf));
+}
+
+async function acceptAuthCallback(request) {
+  const body = await readJson(request, 16 * 1024);
+  const accessToken = text(body.access_token, "Token de acesso", 8192, true);
+  const refreshToken = text(body.refresh_token, "Token de renovação", 8192, true);
+  const client = userClient();
+  const { data, error } = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+  if (error || !data.user || !data.session) throw httpError(401, "O convite expirou ou já foi utilizado. Solicite um novo convite.");
+  const authenticated = userClient(data.session.access_token);
+  const user = await resolveUser(authenticated, data.user);
+  const csrf = randomUUID();
+  return json(200, { user, csrfToken: csrf }, sessionHeaders(data.session, csrf));
+}
+
+async function findAuthUserByEmail(admin, address) {
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw httpError(503, "Não foi possível consultar os usuários do projeto.");
+    const match = data.users.find(user => String(user.email || "").toLowerCase() === address);
+    if (match) return match;
+    if (data.users.length < 1000) return null;
+  }
+  throw httpError(503, "O projeto atingiu o limite de consulta de usuários. Tente novamente.");
+}
+
+function organizationSlug(name) {
+  const base = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 62) || "empresa";
+  return `${base}-${randomUUID().slice(0, 6)}`;
+}
+
+async function platformSummary() {
+  const admin = platformClient();
+  const [organizationsResult, membersResult, profilesResult] = await Promise.all([
+    admin.from("organizations").select("id,name,status,created_at").order("created_at", { ascending: false }),
+    admin.from("org_members").select("organization_id,user_id,role,status,created_at").order("created_at", { ascending: false }),
+    admin.from("profiles").select("id,name,email,status"),
+  ]);
+  if (organizationsResult.error || membersResult.error || profilesResult.error) throw httpError(503, "Não foi possível carregar os dados da plataforma.");
+  const { data: authResult, error: authError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (authError) throw httpError(503, "Não foi possível carregar a situação dos convites.");
+  const organizations = organizationsResult.data || [];
+  const orgById = new Map(organizations.map(item => [item.id, item]));
+  const profileById = new Map((profilesResult.data || []).map(item => [item.id, item]));
+  const authById = new Map((authResult.users || []).map(item => [item.id, item]));
+  const members = (membersResult.data || []).map(member => {
+    const profile = profileById.get(member.user_id) || {};
+    const authUser = authById.get(member.user_id);
+    return {
+      user_id: member.user_id, name: profile.name || "Usuário", email: profile.email || "",
+      profile_status: profile.status || "Suspenso", role: member.role, status: member.status,
+      invitation_pending: Boolean(authUser?.invited_at && !authUser?.email_confirmed_at),
+      organization_id: member.organization_id, organization_name: orgById.get(member.organization_id)?.name || "Empresa removida",
+      created_at: member.created_at,
+    };
+  });
+  return { organizations, members, totals: { organizations: organizations.length, members: members.length } };
+}
+
+async function inviteOrganizationUser(request, ctx) {
+  requirePlatformAdmin(ctx.user);
+  const body = await readJson(request, 32 * 1024);
+  const address = email(body.email);
+  const name = text(body.name, "Nome", 160, true);
+  const requestedOrg = text(body.organization_id, "Empresa", 100);
+  const requestedName = text(body.organization_name, "Nome da empresa", 160);
+  const role = text(body.role, "Perfil", 30);
+  if (!address || !name) throw httpError(400, "Informe nome e e-mail.");
+  if (!requestedOrg && !requestedName) throw httpError(400, "Selecione uma empresa ou informe o nome da nova empresa.");
+  if (requestedOrg && !["Administrador", "Gestor", "Técnico"].includes(role)) throw httpError(400, "Perfil de acesso inválido.");
+  if (!requestedOrg && role && role !== "Administrador") throw httpError(400, "O primeiro acesso da empresa deve ser de administrador.");
+
+  const admin = platformClient();
+  let target = await findAuthUserByEmail(admin, address);
+  const isNewAuthUser = !target;
+  let organization = null;
+  let organizationCreated = false;
+  let memberCreated = false;
+  try {
+    if (target) {
+      const { data: existingMembership, error } = await admin.from("org_members").select("organization_id,status").eq("user_id", target.id).limit(1);
+      if (error) throw httpError(503, "Não foi possível validar os vínculos existentes.");
+      if (existingMembership.length) throw httpError(409, "Este e-mail já está vinculado a uma empresa. Revise o acesso atual antes de vinculá-lo novamente.");
+    }
+
+    if (requestedOrg) {
+      const { data, error } = await admin.from("organizations").select("id,name,status").eq("id", requestedOrg).maybeSingle();
+      if (error || !data || data.status !== "Ativa") throw httpError(404, "Empresa não encontrada ou suspensa.");
+      organization = data;
+    } else {
+      organization = { id: `org_${randomUUID().replaceAll("-", "")}`, name: requestedName, slug: organizationSlug(requestedName), status: "Ativa" };
+      const { error } = await admin.from("organizations").insert(organization);
+      if (error) throw httpError(error.code === "23505" ? 409 : 503, "Não foi possível criar a empresa.");
+      organizationCreated = true;
+      const { error: settingError } = await admin.from("organization_settings").upsert({ organization_id: organization.id, value: { name: requestedName } });
+      if (settingError) throw httpError(503, "Não foi possível preparar as configurações iniciais da empresa.");
+    }
+
+    if (!target) {
+      const options = { data: { full_name: name } };
+      if (process.env.NAXEL_AUTH_REDIRECT_URL) options.redirectTo = process.env.NAXEL_AUTH_REDIRECT_URL;
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(address, options);
+      if (error || !data.user) throw httpError(503, "O Supabase não conseguiu enviar o convite. Confira a configuração de e-mail e tente novamente.");
+      target = data.user;
+    }
+
+    const assignedRole = requestedOrg ? role : "Administrador";
+    const { error: memberError } = await admin.from("org_members").insert({ organization_id: organization.id, user_id: target.id, role: assignedRole, status: "Ativo" });
+    if (memberError) throw httpError(memberError.code === "23505" ? 409 : 503, "Não foi possível vincular o usuário à empresa.");
+    memberCreated = true;
+    const { error: auditError } = await admin.from("audit_logs").insert({
+      id: `a_${randomUUID().replaceAll("-", "")}`, organization_id: organization.id, user_id: ctx.user.id,
+      action: isNewAuthUser ? "platform.invite" : "platform.access_granted", entity: "org_members", entity_id: target.id,
+      detail_json: { role: assignedRole, organization_id: organization.id },
+    });
+    if (auditError) console.error(JSON.stringify({ event: "platform.audit_failure", actor: ctx.user.id, organization_id: organization.id, code: auditError.code || "audit_error" }));
+    return json(201, { ok: true, invited: isNewAuthUser, organization: organization.name, role: assignedRole }, sessionHeaders(ctx.rotated));
+  } catch (error) {
+    if (memberCreated) await admin.from("org_members").delete().eq("organization_id", organization.id).eq("user_id", target.id);
+    if (organizationCreated) await admin.from("organizations").delete().eq("id", organization.id);
+    throw error;
+  }
 }
 
 async function authenticatedRequest(request, pathname) {
@@ -264,6 +407,13 @@ async function authenticatedRequest(request, pathname) {
     await client.auth.signOut({ scope: "local" });
     return json(200, { ok: true }, clearSessionHeaders());
   }
+  if (pathname.startsWith("/api/platform/")) {
+    requirePlatformAdmin(user);
+    if (request.method === "GET" && pathname === "/api/platform/summary") return json(200, await platformSummary(), sessionHeaders(ctx.rotated));
+    if (request.method === "POST" && pathname === "/api/platform/invitations") return await inviteOrganizationUser(request, ctx);
+    throw httpError(404, "Rota da plataforma não encontrada.");
+  }
+  if (user.is_platform_admin) throw httpError(403, "Este acesso é exclusivo do console da plataforma.");
   if (request.method === "GET" && pathname === "/api/data") return json(200, await listAll(client, user.organization_id), sessionHeaders(ctx.rotated));
   if (request.method === "GET" && pathname === "/api/backup") {
     requireRole(user, ["Administrador"]);
@@ -475,6 +625,10 @@ export default async function handler(request) {
     if (request.method === "POST" && pathname === "/api/login") {
       requireSameOrigin(request);
       return await login(request);
+    }
+    if (request.method === "POST" && pathname === "/api/auth/callback") {
+      requireSameOrigin(request);
+      return await acceptAuthCallback(request);
     }
     if (pathname.startsWith("/api/")) return await authenticatedRequest(request, pathname);
     return json(404, { error: "Rota não encontrada." });

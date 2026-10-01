@@ -8,6 +8,7 @@ const NAV = [
   ["reports", "Relatórios", "▤", "DOCUMENTOS"],
   ["settings", "Configurações", "⚙", "PREFERÊNCIAS"]
 ];
+const PLATFORM_NAV = [["platform", "Empresas e acessos", "⌘", "ADMINISTRAÇÃO"]];
 const CHECKS = ["Equipamento identificado", "Condição inicial registrada", "Filtros verificados", "Drenagem testada", "Temperatura conferida", "Área limpa", "Funcionamento validado", "Cliente orientado"];
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -38,7 +39,7 @@ async function api(path, options = {}) {
   return data;
 }
 async function refresh() {
-  state = await api("/api/data");
+  state = me?.is_platform_admin ? await api("/api/platform/summary") : await api("/api/data");
   render();
 }
 function customer(id) { return state.customers.find(item => item.id === id) || { name: "Cliente não encontrado", phone: "" }; }
@@ -70,24 +71,74 @@ function showLogin() {
 function showApp() {
   $("#loginView").hidden = true;
   $("#app").hidden = false;
-  const initials = me.name.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+  const initials = (me.name || me.email || "NC").split(/[\s@.]+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
   $("#userInitials").textContent = initials;
   $("#userName").textContent = me.name;
+  $(".topbar-actions").hidden = Boolean(me.is_platform_admin);
+  $(".sidebar-card").innerHTML = me.is_platform_admin
+    ? '<span class="step-label">CONSOLE DA PLATAFORMA</span><strong>Controle os acessos das empresas Naxel Care</strong><div class="flow-line"><i></i><i></i><i></i><i></i></div>'
+    : '<span class="step-label">FLUXO ESSENCIAL</span><strong>Do chamado ao próximo serviço</strong><div class="flow-line"><i></i><i></i><i></i><i></i></div>';
 }
 function renderNav() {
-  $("#nav").innerHTML = NAV.map(([id, label, icon]) => `<button class="nav-button ${route === id ? "active" : ""}" data-route="${id}" ${route === id ? 'aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</button>`).join("");
+  const items = me?.is_platform_admin ? PLATFORM_NAV : NAV;
+  $("#nav").innerHTML = items.map(([id, label, icon]) => `<button class="nav-button ${route === id ? "active" : ""}" data-route="${id}" ${route === id ? 'aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</button>`).join("");
 }
 function intro(title, text, action = "") {
   return `<div class="page-intro"><div><h2>${title}</h2><p>${text}</p></div>${action}</div>`;
 }
 function render() {
   renderNav();
-  const info = NAV.find(item => item[0] === route) || NAV[0];
+  const items = me?.is_platform_admin ? PLATFORM_NAV : NAV;
+  const info = items.find(item => item[0] === route) || items[0];
   $("#pageTitle").textContent = info[1];
-  $("#contextLabel").textContent = info[3];
-  const page = { dashboard, orders: ordersPage, customers: customersPage, equipment: equipmentPage, returns: returnsPage, warranties: warrantiesPage, reports: reportsPage, settings: settingsPage }[route] || dashboard;
+  $("#contextLabel").textContent = me?.is_platform_admin ? "ADMINISTRAÇÃO DA PLATAFORMA" : info[3];
+  const page = me?.is_platform_admin ? platformPage : ({ dashboard, orders: ordersPage, customers: customersPage, equipment: equipmentPage, returns: returnsPage, warranties: warrantiesPage, reports: reportsPage, settings: settingsPage }[route] || dashboard);
   page();
   $("#content").focus({ preventScroll: true });
+}
+
+function platformPage() {
+  const organizations = state.organizations || [];
+  const members = state.members || [];
+  const activeOrganizations = organizations.filter(item => item.status === "Ativa").length;
+  const activeMembers = members.filter(item => item.status === "Ativo" && item.profile_status === "Ativo").length;
+  const pending = members.filter(item => item.invitation_pending).length;
+  const rows = members.map(item => `
+    <tr>
+      <td><strong>${esc(item.name)}</strong><span class="platform-cell-sub">${esc(item.email)}</span></td>
+      <td>${esc(item.organization_name)}</td>
+      <td>${esc(item.role)}</td>
+      <td>${item.invitation_pending ? '<span class="tag gold">Convite pendente</span>' : badge(item.status === "Ativo" && item.profile_status === "Ativo" ? "Ativo" : "Suspenso")}</td>
+    </tr>`).join("");
+  const orgOptions = organizations.filter(item => item.status === "Ativa").map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join("");
+  $("#content").innerHTML = `
+    <section class="platform-welcome">
+      <div><span class="platform-overline">NAXEL CARE · ACESSO GLOBAL</span><h2>Empresas e acessos</h2><p>Convide os responsáveis de cada empresa e controle quem pode entrar na operação.</p></div>
+      <span class="platform-seal" aria-hidden="true">N</span>
+    </section>
+    <section class="platform-metrics" aria-label="Resumo da plataforma">
+      <div><span>Empresas ativas</span><strong>${activeOrganizations}</strong></div>
+      <div><span>Usuários vinculados</span><strong>${activeMembers}</strong></div>
+      <div><span>Convites aguardando aceite</span><strong>${pending}</strong></div>
+    </section>
+    <div class="platform-layout">
+      <section class="panel platform-invite-panel">
+        <div class="panel-head"><div><span class="panel-kicker">NOVO ACESSO</span><h3>Convidar pessoa</h3></div></div>
+        <p class="platform-help">Enviaremos um convite para a pessoa definir a própria senha. Nenhuma senha é criada ou compartilhada por aqui.</p>
+        <form id="platformInviteForm" class="form-grid">
+          <div class="field full"><label for="platformName">Nome da pessoa</label><input id="platformName" name="name" maxlength="160" autocomplete="name" required></div>
+          <div class="field full"><label for="platformEmail">E-mail de acesso</label><input id="platformEmail" name="email" type="email" maxlength="254" autocomplete="email" required></div>
+          <div class="field full"><label for="platformOrganization">Empresa</label><select id="platformOrganization" name="organization_id"><option value="">Cadastrar nova empresa</option>${orgOptions}</select></div>
+          <div id="newOrganizationField" class="field full"><label for="platformOrganizationName">Nome da nova empresa</label><input id="platformOrganizationName" name="organization_name" maxlength="160" required></div>
+          <div id="platformRoleField" class="field full" hidden><label for="platformRole">Perfil na empresa</label><select id="platformRole" name="role"><option>Administrador</option><option>Gestor</option><option>Técnico</option></select></div>
+          <div class="form-actions full"><button class="button primary">Enviar convite</button></div>
+        </form>
+      </section>
+      <section class="panel platform-directory">
+        <div class="panel-head"><div><span class="panel-kicker">ACESSO À OPERAÇÃO</span><h3>Contas cadastradas</h3></div><span class="platform-count">${members.length}</span></div>
+        ${members.length ? `<div class="platform-table-wrap"><table class="platform-table"><thead><tr><th>Pessoa</th><th>Empresa</th><th>Perfil</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty-state"><strong>Primeira empresa começa aqui</strong><span>Cadastre o responsável para criar a empresa e enviar o convite inicial.</span></div>`}
+      </section>
+    </div>`;
 }
 function setSidebarOpen(open) {
   const sidebar = $("#sidebar");
@@ -391,7 +442,7 @@ function viewReport(reportId) {
 
 document.addEventListener("click", async event => {
   const routeButton = event.target.closest("[data-route]");
-  if (routeButton) { route = routeButton.dataset.route; location.hash = route; if ($("#sidebar").classList.contains("open")) setSidebarOpen(false); render(); window.scrollTo({ top: 0, behavior: "instant" }); return; }
+  if (routeButton) { route = me?.is_platform_admin ? "platform" : routeButton.dataset.route; location.hash = route; if ($("#sidebar").classList.contains("open")) setSidebarOpen(false); render(); window.scrollTo({ top: 0, behavior: "instant" }); return; }
   const button = event.target.closest("[data-action]"); if (!button) return;
   const action = button.dataset.action, id = button.dataset.id;
   try {
@@ -426,11 +477,22 @@ document.addEventListener("change", async event => {
   if (event.target.id === "orderCustomer") fillEquipment(event.target.value);
   if (event.target.id === "returnCustomer") { const el = $("#returnEquipment"); el.innerHTML = options(state.equipment.filter(item => item.customer_id === event.target.value), "Sem equipamento"); }
   if (event.target.id === "photoInput") await filesToData(event.target.files || []);
+  if (event.target.id === "platformOrganization") {
+    const creating = !event.target.value;
+    $("#newOrganizationField").hidden = !creating;
+    $("#platformOrganizationName").required = creating;
+    $("#platformRoleField").hidden = creating;
+  }
 });
 document.addEventListener("submit", async event => {
   event.preventDefault(); const form = event.target; const data = Object.fromEntries(new FormData(form));
   try {
     if (form.id === "loginForm") { const result = await api("/api/login", { method: "POST", body: JSON.stringify(data) }); me = result.user; csrfToken = result.csrfToken || ""; showApp(); await refresh(); return; }
+    if (form.id === "platformInviteForm") {
+      const result = await api("/api/platform/invitations", { method: "POST", body: JSON.stringify(data) });
+      form.reset(); $("#platformOrganization").dispatchEvent(new Event("change", { bubbles: true }));
+      await refresh(); toast(result.invited ? "Convite enviado para o e-mail" : "Acesso vinculado à empresa"); return;
+    }
     if (form.id === "customerForm") await api("/api/customers", { method: "POST", body: JSON.stringify(data) });
     if (form.id === "equipmentForm") await api("/api/equipment", { method: "POST", body: JSON.stringify(data) });
     if (form.id === "orderForm") await api("/api/orders", { method: "POST", body: JSON.stringify(data) });
@@ -470,6 +532,23 @@ document.addEventListener("keydown", event => {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 
+function authTokensFromFragment() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const accessToken = params.get("access_token"), refreshToken = params.get("refresh_token");
+  return accessToken && refreshToken ? { access_token: accessToken, refresh_token: refreshToken } : null;
+}
+
 (async function boot() {
-  try { const result = await api("/api/me"); me = result.user; csrfToken = result.csrfToken || ""; showApp(); await refresh(); window.scrollTo({ top: 0, behavior: "instant" }); } catch { showLogin(); }
+  try {
+    const invitationTokens = authTokensFromFragment();
+    let result;
+    if (invitationTokens) {
+      history.replaceState(null, "", `${location.pathname}${location.search}`);
+      result = await api("/api/auth/callback", { method: "POST", body: JSON.stringify(invitationTokens) });
+    } else result = await api("/api/me");
+    me = result.user; csrfToken = result.csrfToken || "";
+    route = me.is_platform_admin ? "platform" : (NAV.some(item => item[0] === route) ? route : "dashboard");
+    if (location.hash.replace("#", "") !== route) history.replaceState(null, "", `${location.pathname}${location.search}#${route}`);
+    showApp(); await refresh(); window.scrollTo({ top: 0, behavior: "instant" });
+  } catch { showLogin(); }
 })();

@@ -10,29 +10,23 @@ Esta pasta guarda o esquema reproduzível do banco hospedado. A migração cria 
 - Supabase Storage: evidências em bucket privado `service-evidence`; nunca guardar imagens em base64 dentro do banco.
 - SQLite: permanece somente no ambiente local, não deve ser enviado para o deploy.
 
-O painel ainda não deve ser publicado como ambiente de produção. A migração do servidor e da interface para as funções hospedadas é uma etapa separada; esta migração é a fundação do banco.
+O console global de plataforma e o cadastro de empresas são servidos pela função hospedada; a chave de serviço é usada apenas no servidor para convites e administração, nunca no navegador.
 
 ## Preparar o projeto Supabase
 
 1. Criar um projeto Supabase na região mais próxima disponível (preferencialmente São Paulo) e guardar a senha do banco num gerenciador de senhas.
 2. Em Storage, criar `service-evidence` como **private**, limite de arquivo `768 KiB`, tipos permitidos `image/webp` e `image/png`.
-3. Aplicar `migrations/202609300001_initial_schema.sql` e depois `migrations/202610010001_return_contact_history.sql`, nessa ordem, no SQL Editor. A primeira configura tabelas, índices, perfis automáticos, auditoria, RLS por organização e regras de acesso ao bucket. A segunda acrescenta a Central de Retorno com histórico de contatos protegido por empresa.
-4. Em Authentication, desativar cadastro público. Criar/convidar primeiro usuário pelo Dashboard, com e-mail verificado.
-5. Copiar o UUID do usuário em Authentication → Users e executar no SQL Editor, substituindo os valores marcados:
+3. Aplicar as migrações de `migrations/` em ordem numérica. As primeiras configuram dados operacionais, auditoria, RLS, Storage, histórico da Central de Retorno e administração global; a migração mais recente endurece as funções usadas pelas políticas de acesso.
+4. Em Authentication → Users, convidar o e-mail inicial de plataforma. Depois da migração, esse usuário entra no console sem vínculo com uma clínica e pode cadastrar a primeira empresa e as contas da equipe.
+5. Configurar `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NAXEL_ENABLE_PANEL=true` e `NAXEL_AUTH_REDIRECT_URL` nas variáveis do Netlify. Marcar a chave secreta como segredo. Quando o plano permitir, restringi-la ao runtime das funções; o script de build não usa essa chave. Não colocar a chave no navegador, no Git ou no Obsidian.
+6. Em Authentication → URL Configuration, definir `https://naxel-care-os.netlify.app` como Site URL e incluir a URL exata `https://naxel-care-os.netlify.app/painel.html` nas Redirect URLs. O callback remove o fragmento com tokens antes de trocar a sessão por cookies HttpOnly.
+7. Antes de liberar novos clientes, confirmar a configuração de e-mail do Supabase e o convite inicial. Manter o cadastro público desligado; usuários entram por convite e recebem um único vínculo ativo de empresa.
 
-```sql
-insert into public.organizations (id, name, slug)
-values ('org_naxel', 'NOME REAL DA EMPRESA', 'slug-real-da-empresa');
+## Atividade do projeto Free
 
-insert into public.org_members (organization_id, user_id, role)
-values ('org_naxel', 'UUID-DO-USUARIO-AQUI', 'Administrador');
+O Netlify executa `supabase-keepalive` a cada seis horas em produção. A função faz somente uma leitura limitada (`profiles.id`, no máximo uma linha), usando a chave pública `SUPABASE_ANON_KEY`; ela não usa a chave de serviço nem modifica dados. Isso gera atividade no banco e pode reduzir o risco de pausa por inatividade no plano Free, mas a Supabase não garante que um keep-alive evite a pausa. Projetos pagos não são pausados por inatividade.
 
-insert into public.organization_settings (organization_id, value)
-values ('org_naxel', '{"name":"NOME REAL DA EMPRESA","phone":"","city":"Salvador","warrantyDefault":90}'::jsonb);
-```
-
-6. Configurar `SUPABASE_URL` e `SUPABASE_ANON_KEY` como variáveis de ambiente do site Netlify. Não colocar `service_role` no navegador, no Git ou no Obsidian. A arquitetura da aplicação usa o JWT do usuário e RLS; não precisa de chave de serviço para operações normais.
-7. Só depois da API hospedada estar implementada e os testes de isolamento passarem, preparar um deploy de rascunho privado e testar login, CRUD, upload, assinatura, laudo, logout e recuperação de sessão.
+O bloqueio de senhas vazadas é opcional no plano Free e exige plano Pro ou superior no Supabase. Os helpers de RLS usam funções internas no schema `naxel_private`; aplique `202610010003_harden_auth_helpers.sql` depois das migrações anteriores.
 
 ## Privacidade e arquivos
 

@@ -27,6 +27,9 @@ h1, h2, h3 { font-family: "Manrope", Arial, sans-serif; letter-spacing: -.04em; 
 .button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--gold-ink); outline-offset: 4px; }
 .button.primary { color: #fff; background: var(--navy); box-shadow: 0 14px 30px rgba(7,26,47,.2); }
 .button.outline { border-color: rgba(7,26,47,.16); background: rgba(255,255,255,.58); }
+.customer-access { flex: 0 0 auto; white-space: nowrap; }
+.customer-access strong { color: var(--navy); }
+.customer-access-short { display: none; }
 .button.gold { color: var(--navy); background: linear-gradient(135deg, #e7c878, var(--gold)); }
 .text-link { color: var(--copper); font-size: .92rem; font-weight: 800; }
 .text-link.light { color: #fff; }
@@ -135,6 +138,9 @@ footer p { margin: 0; color: var(--muted); font-size: .8rem; }
 @media (max-width: 640px) {
   .site-header { min-height: 72px; gap: 10px; padding: 10px 16px; }
   .site-header .button { min-height: 42px; padding-inline: 15px; font-size: .78rem; }
+  .site-header .contact-access { display: none; }
+  .customer-access-full { display: none; }
+  .customer-access-short { display: inline; }
   .mobile-nav { margin-left: auto; }
   .site-brand small { display: none; }
   .hero { padding: 64px 20px 80px; }
