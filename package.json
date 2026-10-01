@@ -1,0 +1,16 @@
+{
+  "name": "naxel-care-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Naxel Care OS - prototipo funcional local",
+  "scripts": {
+    "start": "node server-secure.js",
+    "build:netlify": "node scripts/build-netlify-site.js",
+    "check": "node --check server-secure.js && node --check public/app.js && node --check netlify/functions/api.mjs && node --test",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.111.0",
+    "sharp": "0.35.5"
+  }
+}

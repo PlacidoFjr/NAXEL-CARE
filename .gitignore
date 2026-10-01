@@ -1,0 +1,13 @@
+node_modules/
+.netlify/
+netlify-public/
+.env
+.env.*
+!.env.example
+data/*.sqlite
+data/*.sqlite-*
+data/naxel-demo-access.txt
+data/pre-security-*/
+data/backups/
+coverage/
+*.log

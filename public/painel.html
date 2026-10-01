@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071a2f">
+  <meta name="description" content="Acesse o painel Naxel Care para gestão de atendimentos técnicos, garantias e retornos.">
+  <title>Acesso | Naxel Care OS</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=central-retorno-1-20261001">
+</head>
+<body>
+  <section id="loginView" class="login-view">
+  <a class="login-brand" href="index.html" aria-label="Voltar para a apresentação do Naxel Care">
+      <img src="assets/naxel-mark.png" width="38" height="45" alt="">
+      <span>NAXEL CARE</span>
+    </a>
+    <div class="login-copy">
+      <p class="eyebrow">GESTÃO DE SERVIÇOS TÉCNICOS</p>
+      <h1>O serviço termina.<br><em>O cuidado continua.</em></h1>
+      <p>Explore ordens de serviço, evidências, garantias e próximas manutenções em um único fluxo.</p>
+      <a class="demo-back-link" href="index.html">← Voltar para a apresentação</a>
+    </div>
+    <form id="loginForm" class="login-card">
+      <div>
+        <span class="step-label">ACESSO SEGURO</span>
+        <h2>Entrar no painel</h2>
+        <p>Use as credenciais da sua conta Naxel Care.</p>
+      </div>
+      <label>E-mail<input name="email" type="email" placeholder="voce@empresa.com.br" required autocomplete="username"></label>
+      <label>Senha<input name="password" type="password" required autocomplete="current-password"></label>
+      <p id="loginError" class="form-error" aria-live="polite"></p>
+      <button class="button primary full" type="submit">Entrar no Naxel Care <span>→</span></button>
+      <small>O acesso é fornecido pelo administrador da sua empresa.</small>
+    </form>
+    <div class="login-orbit" aria-hidden="true"></div>
+  </section>
+
+  <div id="app" class="app-shell" hidden>
+    <aside id="sidebar" class="sidebar">
+      <button class="brand-button" data-route="dashboard" aria-label="Abrir visão geral">
+        <img src="assets/naxel-mark.png" width="42" height="50" alt="">
+        <span><strong>Naxel Care</strong><small>OS & pós-serviço</small></span>
+      </button>
+      <nav id="nav" aria-label="Navegação principal"></nav>
+      <div class="sidebar-card">
+        <span class="step-label">FLUXO ESSENCIAL</span>
+        <strong>Do chamado ao próximo serviço</strong>
+        <div class="flow-line"><i></i><i></i><i></i><i></i></div>
+      </div>
+      <button id="logoutButton" class="user-card" type="button">
+        <span id="userInitials" class="avatar">PJ</span>
+        <span><strong id="userName">Plácido Junior</strong><small>Sair do painel</small></span>
+      </button>
+    </aside>
+    <main class="main-area">
+      <header class="topbar">
+        <button id="menuButton" class="icon-button menu-button" type="button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <div><span id="contextLabel" class="eyebrow">OPERAÇÃO</span><h1 id="pageTitle">Visão geral</h1></div>
+        <div class="topbar-actions">
+          <a class="button quiet presentation-link" href="index.html">Apresentação</a>
+          <button class="button quiet" data-action="new-customer">Novo cliente</button>
+          <button class="button primary" data-action="new-order">Nova OS <span>＋</span></button>
+        </div>
+      </header>
+      <section id="content" class="content" tabindex="-1"></section>
+    </main>
+  </div>
+  <button id="sidebarBackdrop" class="sidebar-backdrop" type="button" aria-label="Fechar menu" hidden></button>
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+  <script src="app.js?v=central-retorno-1-20261001" defer></script>
+</body>
+</html>

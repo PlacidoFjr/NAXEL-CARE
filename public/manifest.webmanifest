@@ -1,0 +1,9 @@
+{
+  "name": "Naxel Care OS",
+  "short_name": "Naxel Care",
+  "start_url": "/painel.html",
+  "display": "standalone",
+  "background_color": "#f5f1e9",
+  "theme_color": "#071a2f",
+  "icons": []
+}
